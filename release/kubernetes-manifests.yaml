@@ -20,6 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: emailservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -63,6 +64,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: emailservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -76,6 +78,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: checkoutservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -132,6 +135,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: checkoutservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -145,6 +149,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: recommendationservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -192,6 +197,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: recommendationservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -205,6 +211,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -219,7 +226,7 @@ spec:
       serviceAccountName: default
       containers:
         - name: server
-          image: cr-cn-beijing.volces.com/hackathon/frontend:v0.3.5
+          image: cr-cn-beijing.volces.com/hackathon/frontend:v0.3.6
           ports:
           - containerPort: 8080
           readinessProbe:
@@ -279,6 +286,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -292,6 +300,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend-external
+  namespace: hackathon
 spec:
   type: LoadBalancer
   selector:
@@ -305,6 +314,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: paymentservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -348,6 +358,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: paymentservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -361,6 +372,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: productcatalogservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -406,6 +418,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: productcatalogservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -419,6 +432,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cartservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -459,6 +473,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: cartservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -472,6 +487,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: loadgenerator
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -523,6 +539,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: currencyservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -567,6 +584,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: currencyservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -580,6 +598,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: shippingservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -625,6 +644,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: shippingservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -638,6 +658,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis-cart
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -678,6 +699,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis-cart
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
@@ -691,6 +713,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: adservice
+  namespace: hackathon
 spec:
   selector:
     matchLabels:
@@ -700,6 +723,19 @@ spec:
       labels:
         app: adservice
     spec:
+      volumes:
+        - name: aos-auto-instrumentation
+          emptyDir: {}
+      initContainers:
+        - name: aos-auto-instrumentation
+          image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:latest
+          volumeMounts:
+            - mountPath: /aos-auto-instrumentation
+              name: aos-auto-instrumentation
+          command:
+            - "cp"
+            - "/javaagent.jar"
+            - "/aos-auto-instrumentation/javaagent.jar"
       serviceAccountName: default
       terminationGracePeriodSeconds: 5
       containers:
@@ -707,15 +743,28 @@ spec:
         image: cr-cn-beijing.volces.com/hackathon/adservice:v0.3.4
         ports:
         - containerPort: 9555
+        volumeMounts:
+          - mountPath: /aos-auto-instrumentation
+            name: aos-auto-instrumentation
         env:
         - name: PORT
           value: "9555"
         - name: DISABLE_STATS
           value: "1"
-        - name: DISABLE_TRACING
-          value: "1"
-        # - name: JAEGER_SERVICE_ADDR
-        #   value: "jaeger-collector:14268"
+        - name: JAEGER_SERVICE_ADDR
+          value: "aos-user-gateway-collector.kube-system.svc.cluster.local:14268"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://aos-user-gateway-collector.kube-system:4317"
+        - name: OTEL_TRACES_EXPORTER
+          value: otlp
+        - name: OTEL_METRICS_EXPORTER
+          value: otlp
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: service.name=adservice,service.namespace=hackathon,deployment.environment=hackathon,service.protocol=grpc,service.version=v0.1.0
+        - name: OTEL_PROPAGATORS
+          value: b3
+        - name: JAVA_TOOL_OPTIONS
+          value: "-javaagent:/aos-auto-instrumentation/javaagent.jar"
         resources:
           requests:
             cpu: 200m
@@ -738,6 +787,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: adservice
+  namespace: hackathon
 spec:
   type: ClusterIP
   selector:
